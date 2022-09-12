@@ -2092,6 +2092,7 @@ fd_reify (EV_P)
     }
 #endif
 
+  // 扫描loop->fdchanges中记录的描述符，将该描述符添加到backend所使用的数据结构中
   for (i = 0; i < fdchangecnt; ++i)
     {
       int fd = fdchanges [i];
@@ -2115,7 +2116,7 @@ fd_reify (EV_P)
         }
 
       if (o_reify & EV__IOFDSET)
-        backend_modify (EV_A_ fd, o_events, anfd->events);
+        backend_modify (EV_A_ fd, o_events, anfd->events);      // 例如此处使用epoll_ctl
     }
 
   fdchangecnt = 0;
@@ -2824,7 +2825,7 @@ ev_set_loop_release_cb (EV_P_ void (*release)(EV_P) EV_THROW, void (*acquire)(EV
 
 /* initialise a loop structure, must be zero-initialised */
 static void noinline ecb_cold
-loop_init (EV_P_ unsigned int flags) EV_THROW
+loop_init (struct ev_loop *loop, unsigned int flags) EV_THROW
 {
   if (!backend)
     {
@@ -2866,7 +2867,7 @@ loop_init (EV_P_ unsigned int flags) EV_THROW
       now_floor          = mn_now;
       rtmn_diff          = ev_rt_now - mn_now;
 #if EV_FEATURE_API
-      invoke_cb          = ev_invoke_pending;
+      invoke_cb          = ev_invoke_pending;       // 该函数的作用是调用当前所有处于Pending状态的监视器的回调函数，根据优先级从高到低
 #endif
 
       io_blocktime       = 0.;
@@ -2889,7 +2890,7 @@ loop_init (EV_P_ unsigned int flags) EV_THROW
 #endif
 
       if (!(flags & EVBACKEND_MASK))
-        flags |= ev_recommended_backends ();
+        flags |= ev_recommended_backends ();        // 获取当前系统支持的backend类型，比如linux中默认使用 epoll
 
 #if EV_USE_IOCP
       if (!backend && (flags & EVBACKEND_IOCP  )) backend = iocp_init   (EV_A_ flags);
@@ -2901,7 +2902,7 @@ loop_init (EV_P_ unsigned int flags) EV_THROW
       if (!backend && (flags & EVBACKEND_KQUEUE)) backend = kqueue_init (EV_A_ flags);
 #endif
 #if EV_USE_EPOLL
-      if (!backend && (flags & EVBACKEND_EPOLL )) backend = epoll_init  (EV_A_ flags);
+      if (!backend && (flags & EVBACKEND_EPOLL )) backend = epoll_init  (EV_A_ flags);      // 走这里
 #endif
 #if EV_USE_POLL
       if (!backend && (flags & EVBACKEND_POLL  )) backend = poll_init   (EV_A_ flags);
@@ -3212,24 +3213,16 @@ ev_verify (EV_P) EV_THROW
 }
 #endif
 
-#if EV_MULTIPLICITY
 struct ev_loop * ecb_cold
-#else
-int
-#endif
 ev_default_loop (unsigned int flags) EV_THROW
 {
   if (!ev_default_loop_ptr)
     {
-#if EV_MULTIPLICITY
-      EV_P = ev_default_loop_ptr = &default_loop_struct;
-#else
-      ev_default_loop_ptr = 1;
-#endif
+      struct ev_loop *loop = ev_default_loop_ptr = &default_loop_struct;
 
-      loop_init (EV_A_ flags);
+      loop_init (loop, flags);
 
-      if (ev_backend (EV_A))
+      if (ev_backend (loop))
         {
 #if EV_CHILD_ENABLE
           ev_signal_init (&childev, childcb, SIGCHLD);
@@ -3811,9 +3804,9 @@ pri_adjust (EV_P_ W w)
 inline_speed void
 ev_start (EV_P_ W w, int active)
 {
-  pri_adjust (EV_A_ w);
-  w->active = active;
-  ev_ref (EV_A);
+  pri_adjust (EV_A_ w);     // 调整优先级
+  w->active = active;       // 设置激活状态
+  ev_ref (EV_A);            // loop->activecnt ++
 }
 
 inline_size void
@@ -3825,11 +3818,13 @@ ev_stop (EV_P_ W w)
 
 /*****************************************************************************/
 
+// brief: 将watcher添加到loop->anfds结构中，将监视的描述符添加到loop->fdchanges中
 void noinline
 ev_io_start (EV_P_ ev_io *w) EV_THROW
 {
   int fd = w->fd;
 
+  // 检查当前ev->active == 0, 是否是激活状态
   if (expect_false (ev_is_active (w)))
     return;
 
@@ -3839,8 +3834,8 @@ ev_io_start (EV_P_ ev_io *w) EV_THROW
   EV_FREQUENT_CHECK;
 
   ev_start (EV_A_ (W)w, 1);
-  array_needsize (ANFD, anfds, anfdmax, fd + 1, array_init_zero);
-  wlist_add (&anfds[fd].head, (WL)w);
+  array_needsize (ANFD, anfds, anfdmax, fd + 1, array_init_zero);       // 调整loop->anfds大小
+  wlist_add (&anfds[fd].head, (WL)w);           // 将io watcher添加到(loop->anfds)[fd].head链表中
 
   /* common bug, apparently */
   assert (("libev: ev_io_start called with corrupted watcher", ((WL)w)->next != (WL)w));
