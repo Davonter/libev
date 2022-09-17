@@ -2099,7 +2099,7 @@ fd_reify (EV_P)
       ANFD *anfd = anfds + fd;
       ev_io *w;
 
-      unsigned char o_events = anfd->events;
+      unsigned char o_events = anfd->events;                                    // 1. 暂存当前的events
       unsigned char o_reify  = anfd->reify;
 
       anfd->reify  = 0;
@@ -2108,14 +2108,14 @@ fd_reify (EV_P)
         {
           anfd->events = 0;
 
-          for (w = (ev_io *)anfd->head; w; w = (ev_io *)((WL)w)->next)
+          for (w = (ev_io *)anfd->head; w; w = (ev_io *)((WL)w)->next)          // 2. 遍历watcher链表，计算新的events
             anfd->events |= (unsigned char)w->events;
 
-          if (o_events != anfd->events)
+          if (o_events != anfd->events)                                         // 3. 比较前后是否发生变化
             o_reify = EV__IOFDSET; /* actually |= */
         }
 
-      if (o_reify & EV__IOFDSET)
+      if (o_reify & EV__IOFDSET)                                                // 4. 如果发生变化了叫调用epoll_ctl
         backend_modify (EV_A_ fd, o_events, anfd->events);      // 例如此处使用epoll_ctl
     }
 
@@ -3835,7 +3835,7 @@ ev_io_start (EV_P_ ev_io *w) EV_THROW
 
   ev_start (EV_A_ (W)w, 1);
   array_needsize (ANFD, anfds, anfdmax, fd + 1, array_init_zero);       // 调整loop->anfds大小
-  wlist_add (&anfds[fd].head, (WL)w);           // 将io watcher添加到(loop->anfds)[fd].head链表中
+  wlist_add (&anfds[fd].head, (WL)w);           // 将io watcher添加到(loop->anfds)[fd].head链表中, fd作为anfds的数组下标
 
   /* common bug, apparently */
   assert (("libev: ev_io_start called with corrupted watcher", ((WL)w)->next != (WL)w));

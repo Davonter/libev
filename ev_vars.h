@@ -43,6 +43,9 @@ VARx(ev_tstamp, now_floor) /* last time we refreshed rt_time */
 VARx(ev_tstamp, mn_now)    /* monotonic clock "now" */
 VARx(ev_tstamp, rtmn_diff) /* difference realtime - monotonic time */
 
+/*convert*/
+// VAR(rtmn_diff, ev_tstamp rtmn_diff) --> ev_tstsamp rtmn_diff;
+
 /* for reverse feeding of events */
 VARx(W *, rfeeds)
 VARx(int, rfeedmax)
@@ -183,7 +186,7 @@ VAR (fs_hash, ANFS fs_hash [EV_INOTIFY_HASHSIZE])
 VARx(EV_ATOMIC_T, sig_pending)
 #if EV_USE_SIGNALFD || EV_GENWRAP
 VARx(int, sigfd)
-VARx(ev_io, sigfd_w)
+VARx(ev_io, sigfd_w)   // VAR(sigfd_w, ev_io sigfd_w) --> ev_io sigfd_w --> loop->sigfd_w
 VARx(sigset_t, sigfd_set)
 #endif
 
