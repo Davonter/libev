@@ -1772,8 +1772,8 @@ typedef struct
 #if EV_USE_IOCP
   OVERLAPPED or, ow;
 #endif
-} ANFD;
 
+} ANFD;
 /* stores the pending event set for a given watcher */
 typedef struct
 {
@@ -2124,7 +2124,7 @@ fd_reify (EV_P)
 
 /* something about the given fd changed */
 inline_size void
-fd_change (EV_P_ int fd, int flags)
+fd_change (struct ev_loop* loop, int fd, int flags)
 {
   unsigned char reify = anfds [fd].reify;
   anfds [fd].reify |= flags;
@@ -2827,7 +2827,7 @@ ev_set_loop_release_cb (EV_P_ void (*release)(EV_P) EV_THROW, void (*acquire)(EV
 static void noinline ecb_cold
 loop_init (struct ev_loop *loop, unsigned int flags) EV_THROW
 {
-  if (!backend)
+  if (!backend)     // backend代表后端事件处理接口，Linux中使用epoll
     {
       origflags = flags;
 
@@ -3076,15 +3076,15 @@ loop_fork (EV_P)
 struct ev_loop * ecb_cold
 ev_loop_new (unsigned int flags) EV_THROW
 {
-  EV_P = (struct ev_loop *)ev_malloc (sizeof (struct ev_loop));
+  struct ev_loop* loop = (struct ev_loop *)ev_malloc (sizeof (struct ev_loop));
 
-  memset (EV_A, 0, sizeof (struct ev_loop));
-  loop_init (EV_A_ flags);
+  memset (loop, 0, sizeof (struct ev_loop));
+  loop_init (loop, flags);
 
-  if (ev_backend (EV_A))
-    return EV_A;
+  if (ev_backend (loop))
+    return loop;
 
-  ev_free (EV_A);
+  ev_free (loop);
   return 0;
 }
 
@@ -3213,13 +3213,20 @@ ev_verify (EV_P) EV_THROW
 }
 #endif
 
+/**
+ * @brief 返回struct ev_loop 指针
+ * 
+ * @param flags 
+ * @return struct ev_loop* 
+ */
 struct ev_loop * ecb_cold
 ev_default_loop (unsigned int flags) EV_THROW
 {
   if (!ev_default_loop_ptr)
     {
+      // 1. 用了两个全局变量来进行初始化
       struct ev_loop *loop = ev_default_loop_ptr = &default_loop_struct;
-
+      // 2. 调用接口初始化struct ev_loop 指针全局变量
       loop_init (loop, flags);
 
       if (ev_backend (loop))
@@ -3227,8 +3234,8 @@ ev_default_loop (unsigned int flags) EV_THROW
 #if EV_CHILD_ENABLE
           ev_signal_init (&childev, childcb, SIGCHLD);
           ev_set_priority (&childev, EV_MAXPRI);
-          ev_signal_start (EV_A_ &childev);
-          ev_unref (EV_A); /* child watcher should not keep loop alive */
+          ev_signal_start (loop, &childev);
+          ev_unref (loop); /* child watcher should not keep loop alive */
 #endif
         }
       else
@@ -3265,7 +3272,7 @@ ev_pending_count (EV_P) EV_THROW
 }
 
 void noinline
-ev_invoke_pending (EV_P)
+ev_invoke_pending (struct ev_loop* loop)
 {
   pendingpri = NUMPRI;
 
@@ -3644,7 +3651,7 @@ ev_run (EV_P_ int flags)
         ++loop_count;
 #endif
         assert ((loop_done = EVBREAK_RECURSE, 1)); /* assert for side effect */
-        backend_poll (EV_A_ waittime);
+        backend_poll (EV_A_ waittime);              // epoll
         assert ((loop_done = EVBREAK_CANCEL, 1)); /* assert for side effect */
 
         pipe_write_wanted = 0; /* just an optimisation, no fence needed */
@@ -3793,7 +3800,7 @@ ev_clear_pending (EV_P_ void *w) EV_THROW
 }
 
 inline_size void
-pri_adjust (EV_P_ W w)
+pri_adjust (struct ev_loop* loop, W w)
 {
   int pri = ev_priority (w);
   pri = pri < EV_MINPRI ? EV_MINPRI : pri;
@@ -3802,11 +3809,11 @@ pri_adjust (EV_P_ W w)
 }
 
 inline_speed void
-ev_start (EV_P_ W w, int active)
+ev_start (struct ev_loop* loop, W w, int active)
 {
-  pri_adjust (EV_A_ w);     // 调整优先级
+  pri_adjust (loop, w);     // 调整watcher优先级
   w->active = active;       // 设置激活状态
-  ev_ref (EV_A);            // loop->activecnt ++
+  ev_ref (loop);            // 激活的事件数目加1， loop->activecnt ++
 }
 
 inline_size void
@@ -3820,11 +3827,11 @@ ev_stop (EV_P_ W w)
 
 // brief: 将watcher添加到loop->anfds结构中，将监视的描述符添加到loop->fdchanges中
 void noinline
-ev_io_start (EV_P_ ev_io *w) EV_THROW
+ev_io_start (struct ev_loop* loop, ev_io *w) EV_THROW
 {
   int fd = w->fd;
 
-  // 检查当前ev->active == 0, 是否是激活状态
+  // 检查当前ev->active == 0, 是否是激活状态，防止重复激活
   if (expect_false (ev_is_active (w)))
     return;
 
@@ -3833,14 +3840,14 @@ ev_io_start (EV_P_ ev_io *w) EV_THROW
 
   EV_FREQUENT_CHECK;
 
-  ev_start (EV_A_ (W)w, 1);
+  ev_start (loop, (W)w, 1);
   array_needsize (ANFD, anfds, anfdmax, fd + 1, array_init_zero);       // 调整loop->anfds大小
   wlist_add (&anfds[fd].head, (WL)w);           // 将io watcher添加到(loop->anfds)[fd].head链表中, fd作为anfds的数组下标
 
   /* common bug, apparently */
   assert (("libev: ev_io_start called with corrupted watcher", ((WL)w)->next != (WL)w));
 
-  fd_change (EV_A_ fd, w->events & EV__IOFDSET | EV_ANFD_REIFY);
+  fd_change (loop, fd, w->events & EV__IOFDSET | EV_ANFD_REIFY);
   w->events &= ~EV__IOFDSET;
 
   EV_FREQUENT_CHECK;
