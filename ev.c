@@ -1827,8 +1827,8 @@ typedef struct {
 #if EV_USE_IOCP
   OVERLAPPED or, ow;
 #endif
-} ANFD;
 
+} ANFD;
 /* stores the pending event set for a given watcher */
 typedef struct {
   W w;
